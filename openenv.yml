@@ -1,0 +1,21 @@
+version: "1.0"
+name: "dataops-env"
+description: "A realistic data engineering environment where agents clean datasets, resolve schemas, and redact PII."
+author: "Your Name"
+
+environment:
+  python_module: "environment"
+  environment_class: "DataOpsEnv"
+  config_model: "models.EpisodeConfig"
+  action_model: "models.DataOpsAction"
+  observation_model: "models.DataOpsObservation"
+  reward_model: "models.DataOpsReward"
+  info_model: "models.DataOpsInfo"
+
+tasks:
+  - id: "easy"
+    description: "Clean a dirty CRM extract by removing garbage columns and imputing missing numeric data."
+  - id: "medium"
+    description: "Resolve mixed types, handle corrupted strings, and filter invalid logical bounds in e-commerce logs."
+  - id: "hard"
+    description: "Safely redact Social Security Numbers embedded in free-text healthcare notes without deleting valid data."
