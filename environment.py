@@ -12,7 +12,7 @@ from graders import evaluate_dataset
 
 logger = logging.getLogger(__name__)
 
-class DataOpsEnv:
+class DataOpsEnv(environment):
     def __init__(self, config: EpisodeConfig):
         self.config = config
         self.df: Optional[pd.DataFrame] = None
@@ -27,7 +27,7 @@ class DataOpsEnv:
         self.current_quality: float = 0.0
         self.total_cost: float = 0.0
 
-    def reset(self, initial_df: pd.DataFrame, constraints: DatasetConstraints, goal: List[str]) -> DataOpsObservation:
+    '''def reset(self, initial_df: pd.DataFrame, constraints: DatasetConstraints, goal: List[str]) -> DataOpsObservation:
         if self.config.random_seed is not None:
             np.random.seed(self.config.random_seed)
 
@@ -46,9 +46,42 @@ class DataOpsEnv:
         components = self._compute_quality_score(self.df)
         self.current_quality = components.schema_score + components.completeness + components.validity + components.privacy
         
-        return self.state()
+        return self.state()'''
+    
+    def reset(self, seed: Optional[int] = None, episode_id: Optional[str] = None, task_id: str = "easy", max_steps: int = 20, **kwargs,) -> DataOpsObservation:
+        self.config = EpisodeConfig(task_id=task_id, max_steps=max_steps, random_seed=seed)
 
-    def state(self) -> DataOpsObservation:
+        from datasets import get_task_easy, get_task_medium, get_task_hard
+        effective_seed = seed if seed is not None else 42
+        if task_id == "medium":
+            initial_df, constraints, goal = get_task_medium(effective_seed)
+        elif task_id == "hard":
+            initial_df, constraints, goal = get_task_hard(effective_seed)
+        else:
+            initial_df, constraints, goal = get_task_easy(effective_seed)
+
+        np.random.seed(effective_seed)
+        self.df = initial_df.copy()
+        self.original_row_count = len(self.df)
+        self.constraints = constraints
+        self.goal = goal
+        
+        self.step_count = 0
+        self.action_history = []
+        self.validation_logs = []
+        self.last_profile = None
+        self.total_cost = 0.0
+        
+        # FIX: Calculate initial quality properly by summing the components
+        components = self._compute_quality_score(self.df)
+        self.current_quality = components.schema_score + components.completeness + components.validity + components.privacy
+        
+
+        return self._build_observation()
+    
+
+    @property
+    def state(self) -> State:
         if self.df is None:
             raise RuntimeError("Environment not initialized. Call reset() first.")
 
@@ -56,8 +89,8 @@ class DataOpsEnv:
         sample_size = min(5, len(self.df))
         sample_df = self.df.sample(n=sample_size) if self.config.enable_partial_observability else self.df.head(5)
 
-        return DataOpsObservation(
-            step_count=self.step_count,
+        return State(step_count=self.step_count,
+            episode_id=None,
             max_steps=self.config.max_steps,
             goal=self.goal,
             schema_state={col: str(dtype) for col, dtype in self.df.dtypes.items()},
@@ -65,10 +98,10 @@ class DataOpsEnv:
             missing_stats=missing_stats,
             validation_logs=self.validation_logs,
             profiling_result=self.last_profile,
-            action_history=self.action_history[-3:]
-        )
+            action_history=self.action_history[-3:])
+        
 
-    def step(self, action: DataOpsAction) -> Tuple[DataOpsObservation, DataOpsReward, bool, DataOpsInfo]:
+    def step(self, action: DataOpsAction, timeout_s: Optional[float] = None, **kwargs) -> DataOpsObservation:
         self.step_count += 1
         self.validation_logs = []
         self.last_profile = None
@@ -123,7 +156,11 @@ class DataOpsEnv:
         )
 
         self.action_history.append(action.model_dump())
-        return self.state(), reward, done, info
+
+        obs = self._build_observation()
+        obs.done = done                    # ← packed into the observation
+        obs.reward = float(reward_value)   # ← packed into the observation
+        return obs 
 
     def _execute_pandas(self, action: DataOpsAction) -> None:
         col = action.target_column
