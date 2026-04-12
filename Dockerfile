@@ -15,4 +15,4 @@ COPY --chown=user . .
 EXPOSE 7860
 
 # This boots the OpenEnv API server so the grader can ping reset()
-CMD ["openenv", "serve", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "7860"]
