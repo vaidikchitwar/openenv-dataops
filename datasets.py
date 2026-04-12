@@ -64,7 +64,15 @@ def get_task_medium(seed: int = 42) -> Tuple[pd.DataFrame, DatasetConstraints, L
     )
     # Note: Because of how Python deals with dynamic attributes on Pydantic models,
     # value_ranges would be added as an extra field in models.py or checked explicitly.
-    constraints.value_ranges = {"price": (0.0, 9999.0)} 
+    constraints = DatasetConstraints(
+        required_columns=["transaction_id", "price", "purchase_date"],
+        forbidden_columns=[],
+        column_types={"price": "numeric", "purchase_date": "datetime"},
+        null_thresholds={"price": 0.0, "purchase_date": 0.05},
+        pii_regex_targets={},
+        min_row_retention=0.85,
+        value_ranges={"price": (0.0, 9999.0)}  # ← pass as constructor arg
+    ) 
     
     goal = ["Harmonize purchase_date to a valid datetime object.", "Clean price column: convert 'FREE' to 0, drop or fix invalid data, and cast to numeric."]
     return df, constraints, goal
