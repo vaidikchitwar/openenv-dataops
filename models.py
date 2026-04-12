@@ -120,6 +120,7 @@ class DataOpsInfo(BaseModel):
 # ------------------------------------------------------------------------
 
 class EpisodeConfig(BaseModel):
+    task_id: str = "easy"
     max_steps: int = 20
     enable_partial_observability: bool = True
     enable_costs: bool = True
